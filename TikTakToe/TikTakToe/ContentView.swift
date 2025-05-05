@@ -3,27 +3,30 @@
 //  TikTakToe
 //
 //  Created by Amarjit on 05/05/2025.
-//  :Follows Sean Allen tutorial on https://www.youtube.com/watch?v=MCLiPW2ns2w
 
 
 import SwiftUI
+import Combine
+
+enum GameState: Int {
+    case inProgress, humanWin, computerWin, draw
+}
 
 enum Player: Int, CaseIterable {
     case human, computer
+    
+    var indicator: String {
+        return self == .human ? "xmark" : "circle"
+    }
 }
 
 struct Move {
     let player: Player // Who made the move?
     let boardIndex: Int // Where on the board was it?
-    
-    var indicator: String {
-        return player == .human ? "xmark" : "circle"
-    }
 }
 
 // MARK: ViewModel
 
-// #TODO
 final class TTTViewModel: ObservableObject {
     let columns: [GridItem] = [GridItem(.flexible()),
                                GridItem(.flexible()),
@@ -215,12 +218,19 @@ struct ContentView: View {
                     .font(.title)
                     .fontWeight(.bold)
                 LazyVGrid(columns: viewModel.columns, spacing: 5.0) {
-                    ForEach(0..<9) { i in
+                    ForEach(0..<9) { index in
+                        
+                        GameSquareView(proxy: geo,
+                                       index: index,
+                                       move: viewModel.moves[index]
+                        )
+                        
+                        /*
                         ZStack {
                             GameSquareView(proxy: geo)
                             
                             PlayerIndicatorView(systemImageName: viewModel.moves[i]?.indicator ?? "")
-                        }
+                        }*/
                         .onTapGesture {
                             print("Tapped")
                             viewModel.processPlayerPosition(for: i)
@@ -249,15 +259,42 @@ struct ContentView: View {
     ContentView()
 }
 
+// Game squares
 struct GameSquareView: View {
-    var proxy: GeometryProxy
+    let proxy: GeometryProxy
+    let index: Int
+    let move: Move?
     
     var body: some View {
         Circle()
             .foregroundColor(.red)
             .opacity(0.5)
-            .frame(width: ((proxy.size.width / 3) - 15),
-                   height: ((proxy.size.height / 3) - 15) )
+            .frame(
+                width: squareSize(in: proxy),
+                height: squareSize(in: proxy)
+            )
+                    
+            if let move = move {
+                Image(systemName: move.player.indicator)
+                    .resizable()
+                    .frame(width: 40, height: 40)
+                    .foregroundColor(.white)
+            }
+
+        
+//        Circle()
+//            .foregroundColor(.red)
+//            .opacity(0.5)
+//            .frame(width: ((proxy.size.width / 3) - 15),
+//                   height: ((proxy.size.height / 3) - 15) )
+    }
+    
+    // Calculate square size based on available space
+    private func squareSize(in proxy: GeometryProxy) -> CGFloat {
+       return min(
+           (proxy.size.width / 3) - 15,
+           (proxy.size.height / 5) - 15
+       )
     }
 }
 

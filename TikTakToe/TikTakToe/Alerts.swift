@@ -17,17 +17,17 @@ struct AlertItem: Identifiable {
 
 struct AlertContext {
     static let humanWin = AlertItem(id: UUID(),
-                             title: Text("Human win"),
-                             message: Text("You won"),
+                             title: Text("You Win!"),
+                             message: Text("You beat the computer. Well done!"),
                              buttonTitle: Text("Play again"))
     
     static let computerWin = AlertItem(id: UUID(),
-                             title: Text("Computer win"),
-                             message: Text("You lost"),
+                             title: Text("You Lost!"),
+                             message: Text("Better luck next time"),
                              buttonTitle: Text("Play again"))
     
     static let draw = AlertItem(id: UUID(),
-                             title: Text("It's a draw"),
+                             title: Text("Draw!"),
                              message: Text("It's a draw"),
-                             buttonTitle: Text("Play again"))
+                             buttonTitle: Text("Try again"))
 }
