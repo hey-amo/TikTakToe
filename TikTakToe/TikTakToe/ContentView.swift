@@ -21,6 +21,9 @@ struct Move {
     }
 }
 
+// #TODO
+struct TTT_ViewModel {}
+
 
 struct ContentView: View {
     let columns: [GridItem] = [GridItem(.flexible()),
@@ -29,7 +32,8 @@ struct ContentView: View {
     ]
 
     @State private var moves: [Move?] = Array(repeating: nil, count: 9)
-    @State private var isHumansTurn: Bool = true
+    @State private var isGameBoardDisabled: Bool = false
+    @State private var alertItem: AlertItem?
     
     var body: some View {
         GeometryReader { geo in
@@ -54,17 +58,118 @@ struct ContentView: View {
                         }
                         .onTapGesture {
                             print("Tapped")
-                            let curPlayer: Player = isHumansTurn ? .human : .computer
-                            moves[i] = Move(player: curPlayer, boardIndex: i)
-                            isHumansTurn.toggle()
+                            if isSquareOccupied(in: moves, forIndex: i) {
+                                return
+                            }
+                            moves[i] = Move(player: .human, boardIndex: i)
+                            isGameBoardDisabled = true
+                            
+                            // check for win condition or draw
+                            if checkWinCondition(for: .human, in: moves) {
+                                print ("Human wins")
+                                alertItem = AlertContext.humanWin
+                                return
+                            }
+                            if checkForDraw(in: moves) {
+                                print ("Draw")
+                                alertItem = AlertContext.draw
+                                return
+                            }
+                            
+                            // make computer move after 0.5 second
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                                print ("computer makes a move")
+                                let computerPosition = determineComputerMovePosition(in: moves)
+                                moves[computerPosition] = Move(player: .computer, boardIndex: computerPosition)
+                                isGameBoardDisabled = false
+                                
+                                // check for win condition or draw
+                                if checkWinCondition(for: .computer, in: moves) {
+                                    print ("Computer wins")
+                                    alertItem = AlertContext.computerWin
+                                    return
+                                }
+                                if checkForDraw(in: moves) {
+                                    print ("Draw")
+                                    alertItem = AlertContext.computerWin
+                                    return 
+                                }
+                            }
                         }
                     }
                 }
                 Spacer()
-            }.padding(5)
+            }
+            .disabled(isGameBoardDisabled)
+            .padding(5)
+            .alert(item: $alertItem, content: {
+                alertItem in
+                Alert(title: alertItem.title, message: alertItem.message, dismissButton: .default(alertItem.buttonTitle, action: {
+                        resetGame()
+                    })
+                )
+            })
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
 
+    } // end: view
+    
+    /// Go through moves array to check each item
+    /// If it is the index, return true == occupied square
+    func isSquareOccupied(in moves:[Move?], forIndex index: Int) -> Bool {
+        return moves.contains(where: {
+            $0?.boardIndex == index
+        })
+    }
+    
+    func determineComputerMovePosition(in moves:[Move?]) -> Int {
+        var movePosition = Int.random(in: 0..<9)
+
+        while isSquareOccupied(in: moves, forIndex: movePosition) {
+            movePosition = Int.random(in: 0..<9)
+        }
+        return movePosition
+    }
+    
+    func checkWinCondition(for player: Player, in moves: [Move?]) -> Bool {
+        
+        /// A collection set of all possible win conditions in tic-tac-toe
+        let winPatterns: Set<Set<Int>> = [
+            [0,1,2],
+            [3,4,5],
+            [6,7,8],
+            [0,3,6],
+            [1,4,7],
+            [2,5,8],
+            [0,4,8],
+            [2,4,6]
+        ]
+        
+        // remove all nils and get player passed in
+        let playerMoves = moves
+            .compactMap { $0 }
+            .filter { $0.player == player }
+        
+        // get me a set of integers from player moves
+        let playerPositions = Set(playerMoves.map {
+            $0.boardIndex
+        })
+        
+        // check subset, to see if there is at least 1 match
+        for pattern in winPatterns where pattern.isSubset(of: playerPositions) {
+            return true
+        }
+        
+        return true
+    }
+    
+    func checkForDraw(in moves:[Move?]) -> Bool {
+        return moves.compactMap{ $0 }.count == 9
+    }
+    
+    func resetGame() {
+        print ("Resetting game")
+        moves = Array(repeating: nil, count: 9)
     }
 }
 
