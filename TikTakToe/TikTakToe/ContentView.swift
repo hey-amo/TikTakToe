@@ -21,99 +21,63 @@ struct Move {
     }
 }
 
+// MARK: ViewModel
+
 // #TODO
-struct TTT_ViewModel {}
-
-
-struct ContentView: View {
+final class TTTViewModel: ObservableObject {
     let columns: [GridItem] = [GridItem(.flexible()),
                                GridItem(.flexible()),
                                GridItem(.flexible()),
     ]
-
-    @State private var moves: [Move?] = Array(repeating: nil, count: 9)
-    @State private var isGameBoardDisabled: Bool = false
-    @State private var alertItem: AlertItem?
     
-    var body: some View {
-        GeometryReader { geo in
-            VStack {
-                Spacer()
-                Text("Tik Tac Toe")
-                    .font(.title)
-                    .fontWeight(.bold)
-                LazyVGrid(columns: columns, spacing: 5.0) {
-                    ForEach(0..<9) { i in
-                        ZStack {
-                            Circle()
-                                .foregroundColor(.red)
-                                .opacity(0.5)
-                                .frame(width: ((geo.size.width / 3) - 15),
-                                       height: ((geo.size.height / 3) - 15) )
-                            Image(systemName: moves[i]?.indicator ?? "")
-                                .resizable()
-                                .frame(width: 40, height: 40)
-                                .foregroundColor(.white)
-                                
-                        }
-                        .onTapGesture {
-                            print("Tapped")
-                            if isSquareOccupied(in: moves, forIndex: i) {
-                                return
-                            }
-                            moves[i] = Move(player: .human, boardIndex: i)
-                            
-                            
-                            // check for win condition or draw
-                            if checkWinCondition(for: .human, in: moves) {
-                                print ("Human wins")
-                                alertItem = AlertContext.humanWin
-                                return
-                            }
-                            if checkForDraw(in: moves) {
-                                print ("Draw")
-                                alertItem = AlertContext.draw
-                                return
-                            }
-                            isGameBoardDisabled = true
-                            
-                            // make computer move after 0.5 second
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                                print ("computer makes a move")
-                                let computerPosition = determineComputerMovePosition(in: moves)
-                                moves[computerPosition] = Move(player: .computer, boardIndex: computerPosition)
-                                isGameBoardDisabled = false
-                                
-                                // check for win condition or draw
-                                if checkWinCondition(for: .computer, in: moves) {
-                                    print ("Computer wins")
-                                    alertItem = AlertContext.computerWin
-                                    return
-                                }
-                                if checkForDraw(in: moves) {
-                                    print ("Draw")
-                                    alertItem = AlertContext.computerWin
-                                    return
-                                }
-                            }
-                        }
-                    }
-                }
-                Spacer()
-            }
-            .disabled(isGameBoardDisabled)
-            .padding(5)
-            .alert(item: $alertItem, content: {
-                alertItem in
-                Alert(title: alertItem.title, message: alertItem.message, dismissButton: .default(alertItem.buttonTitle, action: {
-                        resetGame()
-                    })
-                )
-            })
+    @Published var moves: [Move?] = Array(repeating: nil, count: 9)
+    @Published var isGameBoardDisabled: Bool = false
+    @Published var alertItem: AlertItem?
+    
+    // ---
+    
+    func processPlayerPosition(for position: Int) {
+        if isSquareOccupied(in: moves, forIndex: position) {
+            return
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-
-    } // end: view
+        moves[position] = Move(player: .human, boardIndex: position)
+        
+        
+        // check for win condition or draw
+        if checkWinCondition(for: .human, in: moves) {
+            print ("Human wins")
+            alertItem = AlertContext.humanWin
+            return
+        }
+        if checkForDraw(in: moves) {
+            print ("Draw")
+            alertItem = AlertContext.draw
+            return
+        }
+        isGameBoardDisabled = true
+        
+        // make computer move after 0.5 second
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [self] in
+            print ("computer makes a move")
+            let computerPosition = determineComputerMovePosition(in: moves)
+            moves[computerPosition] = Move(player: .computer, boardIndex: computerPosition)
+            isGameBoardDisabled = false
+            
+            // check for win condition or draw
+            if checkWinCondition(for: .computer, in: moves) {
+                print ("Computer wins")
+                alertItem = AlertContext.computerWin
+                return
+            }
+            if checkForDraw(in: moves) {
+                print ("Draw")
+                alertItem = AlertContext.computerWin
+                return
+            }
+        }
+    }
+    
+    // ---
     
     /// Go through moves array to check each item
     /// If it is the index, return true == occupied square
@@ -185,7 +149,7 @@ struct ContentView: View {
         let centerSquare = 4
         if !isSquareOccupied(in: moves, forIndex: centerSquare) {
             return centerSquare
-        }        
+        }
         
         // -----
         // #4 - Take Random square
@@ -237,6 +201,73 @@ struct ContentView: View {
     }
 }
 
+
+// MARK: ContentView
+
+struct ContentView: View {
+    @StateObject private var viewModel = TTTViewModel()
+    
+    var body: some View {
+        GeometryReader { geo in
+            VStack {
+                Spacer()
+                Text("Tik Tac Toe")
+                    .font(.title)
+                    .fontWeight(.bold)
+                LazyVGrid(columns: viewModel.columns, spacing: 5.0) {
+                    ForEach(0..<9) { i in
+                        ZStack {
+                            GameSquareView(proxy: geo)
+                            
+                            PlayerIndicatorView(systemImageName: viewModel.moves[i]?.indicator ?? "")
+                        }
+                        .onTapGesture {
+                            print("Tapped")
+                            viewModel.processPlayerPosition(for: i)
+                        }
+                    }
+                }
+                Spacer()
+            }
+            .disabled(viewModel.isGameBoardDisabled)
+            .padding(5)
+            .alert(item: $viewModel.alertItem, content: {
+                alertItem in
+                Alert(title: alertItem.title, message: alertItem.message, dismissButton: .default(alertItem.buttonTitle, action: {
+                    viewModel.resetGame()
+                    })
+                )
+            })
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+    } // end: view
+    
+}
+
 #Preview {
     ContentView()
+}
+
+struct GameSquareView: View {
+    var proxy: GeometryProxy
+    
+    var body: some View {
+        Circle()
+            .foregroundColor(.red)
+            .opacity(0.5)
+            .frame(width: ((proxy.size.width / 3) - 15),
+                   height: ((proxy.size.height / 3) - 15) )
+    }
+}
+
+struct PlayerIndicatorView: View {
+    var systemImageName: String
+    
+    var body: some View {
+        Image(systemName: self.systemImageName)
+            .resizable()
+            .frame(width: 40, height: 40)
+            .foregroundColor(.white)
+    }
 }
