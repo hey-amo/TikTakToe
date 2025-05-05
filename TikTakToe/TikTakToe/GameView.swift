@@ -221,12 +221,13 @@ struct GameView: View {
                             index: index,
                             move: viewModel.moves[index]
                         )
+                        .padding(10)
                         .onTapGesture {
                             viewModel.processPlayerMove(for: index)
                         }
                     }
                 }
-                .padding()
+                .padding(10)
                 
                 Spacer()
             }
@@ -258,13 +259,10 @@ struct GameSquareView: View {
     var body: some View {
         ZStack {
             Circle()
-                .foregroundColor(.red)
+                .fill((move?.player == .human) ? Color.red : Color.black)
                 .opacity(0.5)
-                .frame(
-                    width: squareSize(in: proxy),
-                    height: squareSize(in: proxy)
-                )
-            
+                .frame(width: squareSize(in: proxy), height: squareSize(in: proxy))
+      
             if let move = move {
                 Image(systemName: move.player.indicator)
                     .resizable()
@@ -277,8 +275,8 @@ struct GameSquareView: View {
     // Calculate square size based on available space
     private func squareSize(in proxy: GeometryProxy) -> CGFloat {
         return min(
-            (proxy.size.width / 3) - 15,
-            (proxy.size.height / 5) - 15
+            (proxy.size.width / 4) - 15,
+            (proxy.size.height / 4) - 15
         )
     }
 }
