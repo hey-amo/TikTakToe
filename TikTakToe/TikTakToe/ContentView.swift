@@ -27,180 +27,142 @@ struct Move {
 
 // MARK: ViewModel
 
-final class TTTViewModel: ObservableObject {
-    let columns: [GridItem] = [GridItem(.flexible()),
-                               GridItem(.flexible()),
-                               GridItem(.flexible()),
-    ]
-    
+
+class TTTViewModel: ObservableObject {
+    // Published properties that the view can observe
     @Published var moves: [Move?] = Array(repeating: nil, count: 9)
     @Published var isGameBoardDisabled: Bool = false
     @Published var alertItem: AlertItem?
     
-    // ---
+    // Win patterns as a static property (doesn't need to be recreated for each check)
+    private static let winPatterns: Set<Set<Int>> = [
+        [0, 1, 2], [3, 4, 5], [6, 7, 8],  // Rows
+        [0, 3, 6], [1, 4, 7], [2, 5, 8],  // Columns
+        [0, 4, 8], [2, 4, 6]              // Diagonals
+    ]
     
-    func processPlayerPosition(for position: Int) {
-        if isSquareOccupied(in: moves, forIndex: position) {
-            return
-        }
+    // MARK: - Game Logic
+    
+    /// Process the player's move and then the computer's response
+    func processPlayerMove(for position: Int) {
+        // If square is occupied, return early
+        if isSquareOccupied(at: position) { return }
+        
+        // Place human move
         moves[position] = Move(player: .human, boardIndex: position)
         
-        
-        // check for win condition or draw
-        if checkWinCondition(for: .human, in: moves) {
-            print ("Human wins")
+        // Check if human won
+        if checkWinCondition(for: .human) {
             alertItem = AlertContext.humanWin
             return
         }
-        if checkForDraw(in: moves) {
-            print ("Draw")
+        
+        // Check for draw
+        if checkForDraw() {
             alertItem = AlertContext.draw
             return
         }
+        
+        // Disable board during computer's turn
         isGameBoardDisabled = true
         
-        // make computer move after 0.5 second
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [self] in
-            print ("computer makes a move")
-            let computerPosition = determineComputerMovePosition(in: moves)
-            moves[computerPosition] = Move(player: .computer, boardIndex: computerPosition)
-            isGameBoardDisabled = false
+        // Computer makes a move after a delay
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+            guard let self = self else { return }
             
-            // check for win condition or draw
-            if checkWinCondition(for: .computer, in: moves) {
-                print ("Computer wins")
-                alertItem = AlertContext.computerWin
+            let computerPosition = self.determineComputerMovePosition()
+            self.moves[computerPosition] = Move(player: .computer, boardIndex: computerPosition)
+            self.isGameBoardDisabled = false
+            
+            // Check if computer won
+            if self.checkWinCondition(for: .computer) {
+                self.alertItem = AlertContext.computerWin
                 return
             }
-            if checkForDraw(in: moves) {
-                print ("Draw")
-                alertItem = AlertContext.computerWin
+            
+            // Check for draw again
+            if self.checkForDraw() {
+                self.alertItem = AlertContext.draw
                 return
             }
         }
     }
     
-    // ---
-    
-    /// Go through moves array to check each item
-    /// If it is the index, return true == occupied square
-    func isSquareOccupied(in moves:[Move?], forIndex index: Int) -> Bool {
-        return moves.contains(where: {
-            $0?.boardIndex == index
-        })
+    /// Reset the game to its initial state
+    func resetGame() {
+        moves = Array(repeating: nil, count: 9)
     }
     
-    // If AI can win, then win
-    // If AI cannot win, then block
-    // If AI cannot block, take middle square
-    // If AI can't take middle square, take random available square
-    func determineComputerMovePosition(in moves:[Move?]) -> Int {
-        
-        // -----
-        // #1 - If AI can win, then win:
-        /// A collection set of all possible win conditions in tic-tac-toe
-        let winPatterns: Set<Set<Int>> = [
-            [0,1,2],
-            [3,4,5],
-            [6,7,8],
-            [0,3,6],
-            [1,4,7],
-            [2,5,8],
-            [0,4,8],
-            [2,4,6]
-        ]
-        
-        let computerMoves = moves
-            .compactMap { $0 }
-            .filter { $0.player == .computer }
-        
-        let computerPositions = Set(computerMoves.map {
-            $0.boardIndex
-        })
-        
-        // subtract computerPositions
-        for pattern in winPatterns {
-            let winPositions = pattern.subtracting(computerPositions)
-            if winPositions.count == 1 {
-                let isAvailable = !isSquareOccupied(in: moves, forIndex: winPositions.first!)
-                if isAvailable { return winPositions.first! }
-            }
+    // MARK: - Private Helper Methods
+    
+    /// Check if a position on the board is already occupied
+    private func isSquareOccupied(at index: Int) -> Bool {
+        return moves.contains { $0?.boardIndex == index }
+    }
+    
+    /// Determine the best move for the computer
+    private func determineComputerMovePosition() -> Int {
+        // 1. If computer can win, take that move
+        if let position = findWinningMove(for: .computer) {
+            return position
         }
         
-        // -----
-        // #2 - Blocking
-        
-        let humanMoves = moves
-            .compactMap { $0 }
-            .filter { $0.player == .human }
-        
-        let humanPositions = Set(humanMoves.map {
-            $0.boardIndex
-        })
-        
-        // subtract humanPositions
-        for pattern in winPatterns {
-            let winPositions = pattern.subtracting(humanPositions)
-            if winPositions.count == 1 {
-                let isAvailable = !isSquareOccupied(in: moves, forIndex: winPositions.first!)
-                if isAvailable { return winPositions.first! }
-            }
+        // 2. If human can win, block that move
+        if let position = findWinningMove(for: .human) {
+            return position
         }
         
-        // -----
-        // #3 - Take middle square
+        // 3. Take middle square if available
         let centerSquare = 4
-        if !isSquareOccupied(in: moves, forIndex: centerSquare) {
+        if !isSquareOccupied(at: centerSquare) {
             return centerSquare
         }
         
-        // -----
-        // #4 - Take Random square
+        // 4. Take a random available square
         var movePosition = Int.random(in: 0..<9)
-
-        while isSquareOccupied(in: moves, forIndex: movePosition) {
+        while isSquareOccupied(at: movePosition) {
             movePosition = Int.random(in: 0..<9)
         }
         return movePosition
     }
     
-    func checkWinCondition(for player: Player, in moves: [Move?]) -> Bool {
+    /// Find a winning move for the specified player
+    private func findWinningMove(for player: Player) -> Int? {
+        let playerMoves = moves.compactMap { $0 }.filter { $0.player == player }
+        let playerPositions = Set(playerMoves.map { $0.boardIndex })
         
-        /// A collection set of all possible win conditions in tic-tac-toe
-        let winPatterns: Set<Set<Int>> = [
-            [0,1,2],
-            [3,4,5],
-            [6,7,8],
-            [0,3,6],
-            [1,4,7],
-            [2,5,8],
-            [0,4,8],
-            [2,4,6]
-        ]
+        // Check each win pattern to see if player can win with one more move
+        for pattern in Self.winPatterns {
+            let winPositions = pattern.subtracting(playerPositions)
+            
+            // If there's just one position left to win and it's available
+            if winPositions.count == 1 {
+                let position = winPositions.first!
+                if !isSquareOccupied(at: position) {
+                    return position
+                }
+            }
+        }
         
-        let playerMoves = moves
-            .compactMap { $0 }
-            .filter { $0.player == player }
+        return nil
+    }
+    
+    /// Check if the specified player has achieved a winning condition
+    private func checkWinCondition(for player: Player) -> Bool {
+        let playerMoves = moves.compactMap { $0 }.filter { $0.player == player }
+        let playerPositions = Set(playerMoves.map { $0.boardIndex })
         
-        let playerPositions = Set(playerMoves.map {
-            $0.boardIndex
-        })
-        
-        // check subset, to see if there is at least 1 match
-        for pattern in winPatterns where pattern.isSubset(of: playerPositions) {
+        // Check if any winning pattern is satisfied
+        for pattern in Self.winPatterns where pattern.isSubset(of: playerPositions) {
             return true
         }
         
         return false
     }
     
-    func checkForDraw(in moves:[Move?]) -> Bool {
-        return moves.compactMap{ $0 }.count == 9
-    }
-    
-    func resetGame() {
-        print ("Resetting game")
-        moves = Array(repeating: nil, count: 9)
+    /// Check if the game has ended in a draw
+    private func checkForDraw() -> Bool {
+        return moves.compactMap { $0 }.count == 9
     }
 }
 
@@ -208,51 +170,56 @@ final class TTTViewModel: ObservableObject {
 // MARK: ContentView
 
 struct ContentView: View {
+    // Use the view model
     @StateObject private var viewModel = TTTViewModel()
+    
+    // Grid layout
+    let columns: [GridItem] = [
+        GridItem(.flexible()),
+        GridItem(.flexible()),
+        GridItem(.flexible())
+    ]
     
     var body: some View {
         GeometryReader { geo in
             VStack {
                 Spacer()
-                Text("Tik Tac Toe")
-                    .font(.title)
+                
+                Text("Tic Tac Toe")
+                    .font(.largeTitle)
                     .fontWeight(.bold)
-                LazyVGrid(columns: viewModel.columns, spacing: 5.0) {
+                    .padding()
+                
+                // Game board
+                LazyVGrid(columns: columns, spacing: 10) {
                     ForEach(0..<9) { index in
-                        
-                        GameSquareView(proxy: geo,
-                                       index: index,
-                                       move: viewModel.moves[index]
+                        GameSquareView(
+                            proxy: geo,
+                            index: index,
+                            move: viewModel.moves[index]
                         )
-                        
-                        /*
-                        ZStack {
-                            GameSquareView(proxy: geo)
-                            
-                            PlayerIndicatorView(systemImageName: viewModel.moves[i]?.indicator ?? "")
-                        }*/
                         .onTapGesture {
-                            print("Tapped")
-                            viewModel.processPlayerPosition(for: i)
+                            viewModel.processPlayerMove(for: index)
                         }
                     }
                 }
+                .padding()
+                
                 Spacer()
             }
             .disabled(viewModel.isGameBoardDisabled)
-            .padding(5)
-            .alert(item: $viewModel.alertItem, content: {
-                alertItem in
-                Alert(title: alertItem.title, message: alertItem.message, dismissButton: .default(alertItem.buttonTitle, action: {
-                    viewModel.resetGame()
-                    })
+            .padding()
+            .alert(item: $viewModel.alertItem) { alertItem in
+                Alert(
+                    title: alertItem.title,
+                    message: alertItem.message,
+                    dismissButton: .default(alertItem.buttonTitle) {
+                        viewModel.resetGame()
+                    }
                 )
-            })
+            }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-
-    } // end: view
-    
+    }
 }
 
 #Preview {
@@ -266,45 +233,29 @@ struct GameSquareView: View {
     let move: Move?
     
     var body: some View {
-        Circle()
-            .foregroundColor(.red)
-            .opacity(0.5)
-            .frame(
-                width: squareSize(in: proxy),
-                height: squareSize(in: proxy)
-            )
-                    
+        ZStack {
+            Circle()
+                .foregroundColor(.red)
+                .opacity(0.5)
+                .frame(
+                    width: squareSize(in: proxy),
+                    height: squareSize(in: proxy)
+                )
+            
             if let move = move {
                 Image(systemName: move.player.indicator)
                     .resizable()
                     .frame(width: 40, height: 40)
                     .foregroundColor(.white)
             }
-
-        
-//        Circle()
-//            .foregroundColor(.red)
-//            .opacity(0.5)
-//            .frame(width: ((proxy.size.width / 3) - 15),
-//                   height: ((proxy.size.height / 3) - 15) )
+        }
     }
     
     // Calculate square size based on available space
     private func squareSize(in proxy: GeometryProxy) -> CGFloat {
-       return min(
-           (proxy.size.width / 3) - 15,
-           (proxy.size.height / 5) - 15
-       )
-    }
-}
-
-struct PlayerIndicatorView: View {
-    var systemImageName: String
-    
-    var body: some View {
-        Image(systemName: self.systemImageName)
-            .resizable()
-            .frame(width: 40, height: 40)
-            .foregroundColor(.white)
+        return min(
+            (proxy.size.width / 3) - 15,
+            (proxy.size.height / 5) - 15
+        )
     }
 }
