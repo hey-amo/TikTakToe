@@ -62,7 +62,7 @@ struct ContentView: View {
                                 return
                             }
                             moves[i] = Move(player: .human, boardIndex: i)
-                            isGameBoardDisabled = true
+                            
                             
                             // check for win condition or draw
                             if checkWinCondition(for: .human, in: moves) {
@@ -75,6 +75,7 @@ struct ContentView: View {
                                 alertItem = AlertContext.draw
                                 return
                             }
+                            isGameBoardDisabled = true
                             
                             // make computer move after 0.5 second
                             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
@@ -92,7 +93,7 @@ struct ContentView: View {
                                 if checkForDraw(in: moves) {
                                     print ("Draw")
                                     alertItem = AlertContext.computerWin
-                                    return 
+                                    return
                                 }
                             }
                         }
@@ -160,7 +161,7 @@ struct ContentView: View {
             return true
         }
         
-        return true
+        return false
     }
     
     func checkForDraw(in moves:[Move?]) -> Bool {
