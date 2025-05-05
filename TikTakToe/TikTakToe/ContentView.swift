@@ -3,7 +3,8 @@
 //  TikTakToe
 //
 //  Created by Amarjit on 05/05/2025.
-//
+//  :Follows Sean Allen tutorial on https://www.youtube.com/watch?v=MCLiPW2ns2w
+
 
 import SwiftUI
 
@@ -66,18 +67,6 @@ struct ContentView: View {
 
     }
 }
-/*
-struct ContentView: View {
-    var body: some View {
-        VStack {
-            Image(systemName: "globe")
-                .imageScale(.large)
-                .foregroundStyle(.tint)
-            Text("Hello, world!")
-        }
-        .padding()
-    }
-}*/
 
 #Preview {
     ContentView()
