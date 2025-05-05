@@ -123,7 +123,72 @@ struct ContentView: View {
         })
     }
     
+    // If AI can win, then win
+    // If AI cannot win, then block
+    // If AI cannot block, take middle square
+    // If AI can't take middle square, take random available square
     func determineComputerMovePosition(in moves:[Move?]) -> Int {
+        
+        // -----
+        // #1 - If AI can win, then win:
+        /// A collection set of all possible win conditions in tic-tac-toe
+        let winPatterns: Set<Set<Int>> = [
+            [0,1,2],
+            [3,4,5],
+            [6,7,8],
+            [0,3,6],
+            [1,4,7],
+            [2,5,8],
+            [0,4,8],
+            [2,4,6]
+        ]
+        
+        let computerMoves = moves
+            .compactMap { $0 }
+            .filter { $0.player == .computer }
+        
+        let computerPositions = Set(computerMoves.map {
+            $0.boardIndex
+        })
+        
+        // subtract computerPositions
+        for pattern in winPatterns {
+            let winPositions = pattern.subtracting(computerPositions)
+            if winPositions.count == 1 {
+                let isAvailable = !isSquareOccupied(in: moves, forIndex: winPositions.first!)
+                if isAvailable { return winPositions.first! }
+            }
+        }
+        
+        // -----
+        // #2 - Blocking
+        
+        let humanMoves = moves
+            .compactMap { $0 }
+            .filter { $0.player == .human }
+        
+        let humanPositions = Set(humanMoves.map {
+            $0.boardIndex
+        })
+        
+        // subtract humanPositions
+        for pattern in winPatterns {
+            let winPositions = pattern.subtracting(humanPositions)
+            if winPositions.count == 1 {
+                let isAvailable = !isSquareOccupied(in: moves, forIndex: winPositions.first!)
+                if isAvailable { return winPositions.first! }
+            }
+        }
+        
+        // -----
+        // #3 - Take middle square
+        let centerSquare = 4
+        if !isSquareOccupied(in: moves, forIndex: centerSquare) {
+            return centerSquare
+        }        
+        
+        // -----
+        // #4 - Take Random square
         var movePosition = Int.random(in: 0..<9)
 
         while isSquareOccupied(in: moves, forIndex: movePosition) {
@@ -146,12 +211,10 @@ struct ContentView: View {
             [2,4,6]
         ]
         
-        // remove all nils and get player passed in
         let playerMoves = moves
             .compactMap { $0 }
             .filter { $0.player == player }
         
-        // get me a set of integers from player moves
         let playerPositions = Set(playerMoves.map {
             $0.boardIndex
         })
